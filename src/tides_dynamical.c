@@ -265,13 +265,34 @@ void rebx_tides_dynamical(struct reb_simulation* const sim, struct rebx_operator
                 rebx_set_param_double(rebx, (struct rebx_node**)&p->ap, "td_c_imag", new_modes.imag);  
 
                 // Update positions/velocities
-                struct reb_particle new_particle = reb_particle_from_orbit(sim->G, *source, p->m, a_prime, e_prime, o.inc, o.Omega, o.omega, o.f);
-                p->x = new_particle.x;
-                p->y = new_particle.y;
-                p->z = new_particle.z;
-                p->vx = new_particle.vx;
-                p->vy = new_particle.vy;
-                p->vz = new_particle.vz;
+                //struct reb_particle new_particle = reb_particle_from_orbit(sim->G, *source, p->m, a_prime, e_prime, o.inc, o.Omega, o.omega, o.f);
+                //p->x = new_particle.x;
+                //p->y = new_particle.y;
+                //p->z = new_particle.z;
+                //p->vx = new_particle.vx;
+                //p->vy = new_particle.vy;
+                //p->vz = new_particle.vz;
+
+                // A new, manifestly angular-momentum conserving approach
+                double x = p->x;
+                double y = p->y;
+                double z = p->z;
+                double vx = p->vx;
+                double vy = p->vy;
+                double vz = p->vz;
+                double vdotrhat = (x*vx + y*vy + z*vz) / sqrt(x*x + y*y + z*z);
+
+                double x_norm = x / sqrt(x*x + y*y + z*z);
+                double y_norm = x / sqrt(x*x + y*y + z*z);
+                double z_norm = x / sqrt(x*x + y*y + z*z);
+
+                double dE = EB_new - EBk;
+
+                double dv = (-2 * vdotrhat + sqrt(4*vdotrhat*vdotrhat + 8*p->m*dE)) / 2;
+
+                p->vx = p->vx + x_norm * dv;
+                p->vy = p->vy + y_norm * dv;
+                p->vz = p->vz + z_norm * dv;
             }
 
             // REMOVE: Reset delay counter
