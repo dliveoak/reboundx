@@ -189,12 +189,32 @@ void rebx_tides_dynamical(struct reb_simulation* const sim, struct rebx_operator
         rebx_set_param_int(rebx, (struct rebx_node**)&p->ap, "td_migrate", 1);
     }
 
+
+    // Debug parameters - should remove before release
+    if (rebx_get_param(rebx, p->ap, "td_debug_delay") == NULL)
+    {
+        rebx_set_param_int(rebx, (struct rebx_node**)&p->ap, "td_debug_delay", 0);
+    }
+    if (rebx_get_param(rebx, p->ap, "td_debug_delay_counter") == NULL)
+    {
+        rebx_set_param_int(rebx, (struct rebx_node**)&p->ap, "td_debug_delay_counter", -1);
+    }
+
     if (rebx_get_param(rebx, p->ap, "td_M_last") != NULL)
     {       
         double* M_last = rebx_get_param(rebx, p->ap, "td_M_last");
 
-        // Periapse detection
         if (o.M < *M_last)
+        {
+            int* delay = rebx_get_param(rebx, p->ap, "td_debug_delay");
+            rebx_set_param_int(rebx, (struct rebx_node**)&p->ap, "td_debug_delay_counter", *delay);
+        }
+
+        int* delay_counter = rebx_get_param(rebx, p->ap, "td_debug_delay_counter");
+
+        // Periapse detection
+        //if (o.M < *M_last)
+        if (*delay_counter == 0)
         {
             // Count periapse passages
             int* num_periapse = rebx_get_param(rebx, p->ap, "td_num_periapse");
@@ -253,6 +273,15 @@ void rebx_tides_dynamical(struct reb_simulation* const sim, struct rebx_operator
                 p->vy = new_particle.vy;
                 p->vz = new_particle.vz;
             }
+
+            // REMOVE: Reset delay counter
+            rebx_set_param_int(rebx, (struct rebx_node**)&p->ap, "td_debug_delay_counter", -1);
+
+        }
+        // REMOVE: Decrement delay counter
+        else if (*delay_counter > 0)
+        {
+            rebx_set_param_int(rebx, (struct rebx_node**)&p->ap, "td_debug_delay_counter", *delay_counter - 1);
         }
 
     }
