@@ -88,6 +88,16 @@ struct rebx_tides_dynamical_params rebx_calculate_tides_dynamical_params(struct 
     double R_p = a * (1 - e); // pericenter distance
     double eta = R_p / R_tide; // pericenter distance in units of tidal radius
 
+    if (eta <= 2.5) // Tidal disruption occured
+    {
+        struct rebx_tides_dynamical_params toReturn;
+        toReturn.dP = 0;
+        toReturn.dE_alpha = 0;
+        toReturn.sigma = 0;
+
+        return toReturn;
+    }
+
     // Timescales/frequencies
     double Omega_peri = pow(sim->G * (p->m + primary->m) / (R_p * R_p * R_p), 0.5); // pericenter frequency
     double time_unit = pow(sim->G * p->m / (R * R * R), 0.5); // default units for mode parameters
@@ -265,16 +275,56 @@ void rebx_tides_dynamical(struct reb_simulation* const sim, struct rebx_operator
                 rebx_set_param_double(rebx, (struct rebx_node**)&p->ap, "td_c_imag", new_modes.imag);  
 
                 // Update positions/velocities
-                //struct reb_particle new_particle = reb_particle_from_orbit(sim->G, *source, p->m, a_prime, e_prime, o.inc, o.Omega, o.omega, o.f);
-                //p->x = new_particle.x;
-                //p->y = new_particle.y;
-                //p->z = new_particle.z;
-                //p->vx = new_particle.vx;
-                //p->vy = new_particle.vy;
-                //p->vz = new_particle.vz;
+
+                // Compute CoM parameters
+                double comx = 0;
+                double comy = 0;
+                double comz = 0;
+                double comvx = 0;
+                double comvy = 0;
+                double comvz = 0;
+                double total_m = 0;
+
+                for (int i = 0; i < sim->N; i++)
+                {
+                    comx += sim->particles[i].m * sim->particles[i].x;
+                    comy += sim->particles[i].m * sim->particles[i].y;
+                    comz += sim->particles[i].m * sim->particles[i].z;
+                    comvx += sim->particles[i].m * sim->particles[i].vx;
+                    comvy += sim->particles[i].m * sim->particles[i].vy;
+                    comvz += sim->particles[i].m * sim->particles[i].vz;
+                    total_m += sim->particles[i].m;
+                }
+
+                // do orbital calculation in CoM frame
+                struct reb_particle source_com = {0};
+                source_com.m = source->m;
+                source_com.x = source->x - comx / total_m;
+                source_com.y = source->y - comy / total_m;
+                source_com.z = source->z - comz / total_m;
+                source_com.vx = source->vx - comvx / total_m;
+                source_com.vy = source->vy - comvy / total_m;
+                source_com.vz = source->vz - comvz / total_m;
+                struct reb_particle new_particle = reb_particle_from_orbit(sim->G, source_com, p->m, a_prime, e_prime, o.inc, o.Omega, o.omega, o.f);
+
+                // return to simulation frame
+
+                source->vx = source->vx - (p->m / source->m)*(new_particle.vx + comvx / total_m - p->vx);
+                source->vy = source->vy - (p->m / source->m)*(new_particle.vy + comvy / total_m - p->vy);
+                source->vz = source->vz - (p->m / source->m)*(new_particle.vz + comvz / total_m - p->vz);
+
+                p->x = new_particle.x + comx / total_m;
+                p->y = new_particle.y + comy / total_m;
+                p->z = new_particle.z + comz / total_m;
+                p->vx = new_particle.vx + comvx / total_m;
+                p->vy = new_particle.vy + comvy / total_m;
+                p->vz = new_particle.vz + comvz / total_m;
+
+                
+
 
                 // A new, manifestly angular-momentum conserving approach
-                double x = p->x;
+                /*double x = p->x;
                 double y = p->y;
                 double z = p->z;
                 double vx = p->vx;
@@ -283,16 +333,28 @@ void rebx_tides_dynamical(struct reb_simulation* const sim, struct rebx_operator
                 double vdotrhat = (x*vx + y*vy + z*vz) / sqrt(x*x + y*y + z*z);
 
                 double x_norm = x / sqrt(x*x + y*y + z*z);
-                double y_norm = x / sqrt(x*x + y*y + z*z);
-                double z_norm = x / sqrt(x*x + y*y + z*z);
+                double y_norm = y / sqrt(x*x + y*y + z*z);
+                double z_norm = z / sqrt(x*x + y*y + z*z);
 
                 double dE = EB_new - EBk;
 
-                double dv = (-2 * vdotrhat + sqrt(4*vdotrhat*vdotrhat + 8*p->m*dE)) / 2;
+                printf("Discriminant: %f\n", 4*vdotrhat*vdotrhat + 8*dE / (p->m));
+
+                double disc = 0;
+                if (4*vdotrhat*vdotrhat + 8*dE / (p->m) >= 0)
+                {
+                    disc = 4*vdotrhat*vdotrhat + 8*dE / (p->m);
+                }
+
+                double dv = (-2 * vdotrhat + sqrt(disc)) / 2;
 
                 p->vx = p->vx + x_norm * dv;
                 p->vy = p->vy + y_norm * dv;
                 p->vz = p->vz + z_norm * dv;
+
+                source->vx = source->vx - x_norm * dv * p->m / source->m;
+                source->vy = source->vy - y_norm * dv * p->m / source->m;
+                source->vz = source->vz - z_norm * dv * p->m / source->m;*/
             }
 
             // REMOVE: Reset delay counter
